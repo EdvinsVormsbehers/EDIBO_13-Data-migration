@@ -31,6 +31,15 @@ for table in chinook_tables:
         columns = tuple([i[0] for i in table_content.description])
         values = table_content.fetchall()
 
+        # auditions to check who and when created, updated and deleted(deleted_archive)
+        cursor_mysql.execute(f"ALTER TABLE {ch_table} ADD COLUMN createdAt timestamp NOT NULL DEFAULT current_timestamp")
+        cursor_mysql.execute(f"ALTER TABLE {ch_table} ADD COLUMN createdBy NVARCHAR(20) NULL")
+        cursor_mysql.execute(f"ALTER TABLE {ch_table} ADD COLUMN updatedAt DATETIME DEFAULT NULL ON UPDATE current_timestamp")
+        cursor_mysql.execute(f"ALTER TABLE {ch_table} ADD COLUMN updatedBy NVARCHAR(20) NULL")
+        cursor_mysql.execute(f"CREATE TRIGGER trigger_{ch_table}_created BEFORE INSERT ON {ch_table} FOR EACH ROW SET NEW.createdBy = USER()")
+        cursor_mysql.execute(f"CREATE TRIGGER trigger_{ch_table}_updated BEFORE UPDATE ON {ch_table} FOR EACH ROW SET NEW.updatedBy = USER()")
+        cursor_mysql.execute(f"CREATE TRIGGER trigger_{ch_table}_deleted BEFORE DELETE ON {ch_table} FOR EACH ROW INSERT INTO deleted_archive(table_name, value_id, deletedAt, deletedBy) VALUES ('{ch_table}', OLD.{columns[0]}, current_timestamp, USER()) ")
+        
         # migrates data from chinook database into music_shop database
         insert = "".join((f"INSERT INTO {ch_table} {columns} VALUES {str(values).replace('[', '').replace(']', '').replace('None', 'Null')}").split("'", len(columns) * 2))
         cursor_mysql.execute(insert)
